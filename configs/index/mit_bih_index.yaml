@@ -1,0 +1,13 @@
+# configs/index/mit_bih_index.yaml
+# this has to be changed depending on the dataset
+raw_dir: ../../data/raw/mit-bih-arrhythmia-database-1.0.0
+out_dir: ../../data/index
+test_split: 0.2
+val_split: 0.1
+train_split: 0.7
+record_extensions:
+  - .dat
+  - .hea
+  - .atr
+record_id_pattern: ^\d{3}\.
+seed: 42  
