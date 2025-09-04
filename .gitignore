@@ -1,3 +1,4 @@
 data/raw
 data/zipped
 virtualenv
+__pycache__

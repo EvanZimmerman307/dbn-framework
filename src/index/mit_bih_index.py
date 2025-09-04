@@ -19,10 +19,7 @@ import pyarrow.parquet as pq
 
 
 def mit_bih_index_main(config_path: str):
-    # Configure basic logging (only runs once)
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-
-    # Get a logger instance
     logger = logging.getLogger(__name__)
 
     with open(config_path, "r") as f:
