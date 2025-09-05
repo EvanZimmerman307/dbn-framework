@@ -3,6 +3,9 @@ from scipy.signal import butter, sosfiltfilt, sosfilt
 from preprocessing_base import register, PreprocessingStep, STEP_REGISTRY
 from record import Record
 from dataclasses import replace
+from ecgdetectors import Detectors
+import logging
+import pandas as pd
 
 @register("highpass_filter")
 class HighpassFilter(PreprocessingStep):
@@ -39,9 +42,30 @@ class HighpassFilter(PreprocessingStep):
         ecg_new = replace(ecg_new, stats=stats)
         return replace(record, ecg_recording=ecg_new)
 
-@register("normalize_robust")
+
+@register("pan_tompkins")
+class PanTompkins(PreprocessingStep):
+    """Run the pan-tompkins algorithm to detect candidate R peaks"""
+    def __call__(self, record: Record) -> Record:
+        logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+        logger = logging.getLogger(__name__)
+        x = record.ecg_recording.signal
+        try:
+            fs = int(self.params["fs"])
+            channel = self.params["channel"]
+        except Exception as e:
+            logger.info(f"sampling frequency (fs) and channel need to be specified in preprocessing config: {e}")
+        detectors = Detectors(fs)
+        channel_index = record.ecg_recording.channels.index(channel)
+        channel_signal = x[channel_index]
+        candidate_r_peaks = detectors.pan_tompkins_detector(channel_signal) #indices
+        candidate_r_peaks = np.asarray(candidate_r_peaks)
+        return replace(record, candidates=candidate_r_peaks)
+
+@register("normalize")
 class NormalizeRobust(PreprocessingStep):
     """Per-record, per-channel robust z-score: (x - median) / MAD; optional clipping."""
+    """We don't use mean and std because data has sharp spikes and noise bursts"""
     def __call__(self, record: Record) -> Record:
         x = record.ecg_recording.signal
         clip_sigma = self.params.get("clip_sigma", None)
@@ -76,3 +100,20 @@ class NormalizeRobust(PreprocessingStep):
         }
         ecg_new = replace(ecg_new, stats=stats)
         return replace(record, ecg_recording=ecg_new)
+
+@register("make_windows")
+class Windowize(PreprocessingStep):
+    """Make the table of ecg recording + candidate + annotation windows that will be consumed by downstream models"""
+    def __call__(self, record: Record) -> Record:
+        params = self.params
+        logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+        logger = logging.getLogger(__name__)
+        try:
+            window_len = params["window_len"]
+            stride = params["stride"]
+            core = params["core"]
+        except Exception as e:
+            logger.info(f"window len, stride, and core need to be specified in make_windows config: {e}")
+        window_table = pd.DataFrame(columns=['Column1', 'Column2', 'Column3'])
+
+        

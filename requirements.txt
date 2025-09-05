@@ -1,3 +1,4 @@
 wfdb
 PyYAML
 pyarrow
+py-ecg-detectors

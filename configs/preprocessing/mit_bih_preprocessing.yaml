@@ -1,8 +1,12 @@
 raw_dir: ../../data/raw/mit-bih-arrhythmia-database-1.0.0
 index_parquet: ../../data/index/mit_bih_index.parquet
 pipeline:
-  - op: high_pass
+  - op: highpass_filter
     params: { cutoff_hz: 0.5, order: 4, zero_phase: true }
+  - op: pan_tomplins
+    params: { fs: 360, channel: MLII }
   - op: normalize
-    params: { mode: "per_record_robust", stat: "mad", clip_sigma: 5 }
+    params: { clip_sigma: 5 }
+  - op: make_windows
+    params: { window_len: 10, stride:  8, core: 8 }
 annotation_extension: atr

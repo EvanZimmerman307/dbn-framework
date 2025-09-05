@@ -24,11 +24,9 @@ def run_pipeline(record: Record, pipeline: list[dict], logger) -> Record:
     for spec in pipeline:
         op = spec["op"]
         params = spec.get("params", {})
-        logger.info(f"{list(STEP_REGISTRY.keys())}")
-        return
-        # step_cls = STEP_REGISTRY[op]
-        # out = step_cls(params)(out)
-    #return out
+        step_cls = STEP_REGISTRY[op]
+        out = step_cls(params)(out)
+    return out
 
 def mit_bih_preprocessing_main(config_path: str):
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -48,7 +46,8 @@ def mit_bih_preprocessing_main(config_path: str):
             recording = wfdb.rdrecord(f'{raw_dir}/{record_id}')
             annotation = wfdb.rdann(f'{raw_dir}/{record_id}', annotation_extension)
             record = Record.from_wfdb(recording, annotation, record_id)
-            run_pipeline(record, pipeline, logger)
+            record = run_pipeline(record, pipeline, logger)
+            
 
 if __name__ == "__main__":
     config_path = "../../configs/preprocessing/mit_bih_preprocessing.yaml"

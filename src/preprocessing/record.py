@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from typing import Dict, Any, Optional
 import numpy as np
+import pandas as pd
 
 @dataclass(kw_only=True)
 class EcgRecording:
@@ -20,7 +21,8 @@ class Annotation:
 class Record:
     ecg_recording: EcgRecording
     annotation: Annotation
-
+    candidates: np.ndarray = None
+    window_table: pd.DataFrame = None
 
     @classmethod
     def from_wfdb(cls, recording, annotation, record_id):
