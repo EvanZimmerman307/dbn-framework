@@ -52,11 +52,17 @@ class PanTompkins(PreprocessingStep):
         x = record.ecg_recording.signal
         try:
             fs = int(self.params["fs"])
-            channel = self.params["channel"]
+            channels = self.params["channels"] # channels to try for PT
         except Exception as e:
             logger.info(f"sampling frequency (fs) and channel need to be specified in preprocessing config: {e}")
         detectors = Detectors(fs)
-        channel_index = record.ecg_recording.channels.index(channel)
+        
+        # try the channels in the specified order
+        for channel in channels:
+            if channel in record.ecg_recording.channels: # if the channel is in the ecg recording channels, grab the index
+                channel_index = record.ecg_recording.channels.index(channel)
+                break
+        
         channel_signal = x[channel_index]
         candidate_r_peaks = detectors.pan_tompkins_detector(channel_signal) #indices
         candidate_r_peaks = np.asarray(candidate_r_peaks)
@@ -109,11 +115,61 @@ class Windowize(PreprocessingStep):
         logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
         logger = logging.getLogger(__name__)
         try:
-            window_len = params["window_len"]
-            stride = params["stride"]
-            core = params["core"]
+            window_len = int(params["window_len"])
+            stride = int(params["stride"])
+            core = int(params["core"])
+            R_peak_symbols = params["R_peak_symbols"]
+            R_peak_symbols = set(R_peak_symbols)
         except Exception as e:
-            logger.info(f"window len, stride, and core need to be specified in make_windows config: {e}")
-        window_table = pd.DataFrame(columns=['Column1', 'Column2', 'Column3'])
+            logger.info(f"window len, stride, core, and R peak symbols need to be specified in make_windows config: {e}")
+        channels = record.ecg_recording.channels
+        column_names = ['start', 'end', 'core_start', 'core_end'] + channels + ['annotations', 'candidates']
+        window_table = pd.DataFrame(columns=column_names)
+
+        fs = record.ecg_recording.fs
+        samples_per_window, samples_per_stride, samples_per_core = int(window_len * fs), int(stride * fs), int(core * fs)
+        window_edge_count = (window_len - core) / 2 * fs # samples from window start to core
+
+        signal = record.ecg_recording.signal # shape C x T
+        num_samples = int(signal.shape[1])
+        annotation_indices = record.annotation.indices
+        annotation_symbols = record.annotation.symbols
+        for i in range(0, num_samples, samples_per_stride):
+            window_row = {}
+            window_row['start'] = i
+            window_row['end'] = i + samples_per_window - 1
+            window_row['core_start'] = window_row['start'] + window_edge_count
+            window_row['core_end'] = window_row['core_start'] + samples_per_core - 1
+            for i, channel_name in enumerate(channels):
+                channel_slice = signal[i][window_row['start']: window_row['end'] + 1]
+                window_row[channel_name] = channel_slice
+            
+            annotation_core = []
+            for ind, symbol in zip(annotation_indices, annotation_symbols):
+                if ind > window_row['core_end']:
+                    break
+                
+                if ind >= window_row['core_start'] and symbol in R_peak_symbols:
+                    annotation_core.append(ind)
+            window_row['annotations'] = annotation_core
+            
+            candidate_core = []
+            for ind in record.candidates:
+                if ind > window_row['core_end']:
+                    break
+                    
+                if ind >= window_row['core_start']:
+                    candidate_core.append(ind)
+            window_row['candidates'] = candidate_core
+            
+            next_ind = len(window_table)
+            window_table.loc[next_ind] = window_row
+            
+            return replace(record, window_table=window_table)
+                
+                
+            
+            
+
 
         

@@ -1,12 +1,37 @@
 raw_dir: ../../data/raw/mit-bih-arrhythmia-database-1.0.0
+out_dir: ../../data/preprocessed
 index_parquet: ../../data/index/mit_bih_index.parquet
 pipeline:
   - op: highpass_filter
     params: { cutoff_hz: 0.5, order: 4, zero_phase: true }
-  - op: pan_tomplins
-    params: { fs: 360, channel: MLII }
+  - op: pan_tompkins
+    params: { fs: 360, channels: [MLII, V5] }
   - op: normalize
     params: { clip_sigma: 5 }
   - op: make_windows
-    params: { window_len: 10, stride:  8, core: 8 }
+    params:  
+      window_len: 10 
+      stride:  8 
+      core: 8
+      R_peak_symbols:
+        - N
+        - L
+        - R
+        - B
+        - A
+        - a
+        - J
+        - S
+        - V
+        - r 
+        - F
+        - n
+        - e
+        - j
+        - E
+        - /
+        - f
+        - Q
+        - '?'
+index_row_map: { 0: train, 1: val, 2: test }
 annotation_extension: atr

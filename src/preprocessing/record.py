@@ -13,8 +13,8 @@ class EcgRecording:
 
 @dataclass(kw_only=True)
 class Annotation:
-    annotation_indices: np.ndarray
-    annotation_symbols: list[str]
+    indices: np.ndarray
+    symbols: list[str]
 
 
 @dataclass(kw_only=True) 
@@ -37,8 +37,8 @@ class Record:
         record_params["ecg_recording"] = EcgRecording(**ecg_recording_params)
 
         annotation_params = {}
-        annotation_params["annotation_indices"] = np.asarray(annotation.sample, dtype=int)
-        annotation_params["annotation_symbols"] = annotation.symbol
+        annotation_params["indices"] = np.asarray(annotation.sample, dtype=int)
+        annotation_params["symbols"] = annotation.symbol
         record_params["annotation"] = Annotation(**annotation_params)
         
         return Record(**record_params)

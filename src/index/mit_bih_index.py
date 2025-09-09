@@ -49,10 +49,13 @@ def mit_bih_index_main(config_path: str):
     record_ids.sort()
     record_ids = np.array(record_ids)
     seed = int(cfg["seed"])
+    
     # Initialize a PCG64 BitGenerator
     bitgen = np.random.PCG64(seed=seed)
+    
     # Create a Generator
     rng = np.random.Generator(bitgen)
+    
     # shuffle in-place
     rng.shuffle(record_ids)
     logger.info(f"shuffled records ids: {record_ids}")
@@ -61,14 +64,24 @@ def mit_bih_index_main(config_path: str):
 
     train_cutoff = math.ceil(num_records * train_split)
     val_cutoff = train_cutoff + math.ceil(num_records * val_split)
+    
     # test set is the remaining records
     logger.info(f"train_cutoff: {train_cutoff}, val_cutoff: {val_cutoff}")
 
     split_map = {}
     split_map["train"], split_map["val"], split_map["test"] = record_ids[:train_cutoff].astype(int), record_ids[train_cutoff:val_cutoff].astype(int), record_ids[val_cutoff:].astype(int)
+
+    # Add back 202 to whatever group 201 is a part of to avoid cross-group contamination
+    group_201 = None
+    for group in ["train", "val", "test"]:
+        if 201 in split_map[group]:
+            split_map[group] = np.append(split_map[group], 202)
+            break
+    
     logger.info(f"train records: {split_map["train"]}, {len(split_map["train"])} records")
     logger.info(f"val records: {split_map["val"]}, {len(split_map["val"])} records")
     logger.info(f"test records: {split_map["test"]}, {len(split_map["test"])} records")
+
     train_checksum, val_checksum, test_checksum = np.sum(split_map["train"]), np.sum(split_map["val"]), np.sum(split_map["test"])
     logger.info(f"train_checksum: {train_checksum}, val_checksum: {val_checksum}, test_checksum: {test_checksum}")
 
