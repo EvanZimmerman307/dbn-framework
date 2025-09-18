@@ -134,6 +134,8 @@ class Windowize(PreprocessingStep):
         num_samples = int(signal.shape[1])
         annotation_indices = record.annotation.indices
         annotation_symbols = record.annotation.symbols
+        prev_annotation_i = 0
+        prev_candidate_i = 0
         for i in range(0, num_samples, samples_per_stride):
             window_row = {}
             window_row['start'] = i
@@ -145,27 +147,37 @@ class Windowize(PreprocessingStep):
                 window_row[channel_name] = channel_slice
             
             annotation_core = []
-            for ind, symbol in zip(annotation_indices, annotation_symbols):
+            i = prev_annotation_i
+            while i < len(annotation_indices):
+                ind, symbol = annotation_indices[i], annotation_symbols[i]
                 if ind > window_row['core_end']:
                     break
-                
+
                 if ind >= window_row['core_start'] and symbol in R_peak_symbols:
                     annotation_core.append(ind)
+                
+                i += 1 
             window_row['annotations'] = annotation_core
+            prev_annotation_i = i
             
             candidate_core = []
-            for ind in record.candidates:
+            i = prev_candidate_i
+            while i < len(record.candidates):
+                ind = record.candidates[i]
                 if ind > window_row['core_end']:
                     break
-                    
+
                 if ind >= window_row['core_start']:
                     candidate_core.append(ind)
+                
+                i += 1
             window_row['candidates'] = candidate_core
+            prev_candidate_i = i
             
             next_ind = len(window_table)
             window_table.loc[next_ind] = window_row
             
-            return replace(record, window_table=window_table)
+        return replace(record, window_table=window_table)
                 
                 
             

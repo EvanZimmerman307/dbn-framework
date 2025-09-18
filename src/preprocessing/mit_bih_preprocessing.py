@@ -9,6 +9,8 @@ import preproccesing_steps
 import pyarrow as pa
 import pyarrow.parquet as pq
 import time
+import multiprocessing
+from functools import partial
 
 """
 Summary of the Runtime Flow
@@ -20,6 +22,28 @@ Your main function loads the pipeline config.
 For each record, run_pipeline looks up and applies each step in order.
 No need to manually instantiate or call each step—just ensure the module is imported.
 """
+
+def process_record(index_row, raw_dir, out_dir, annotation_extension, pipeline, index_row_map):
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+    logger = logging.getLogger(__name__)
+    
+    index, row = index_row
+    split_type = index_row_map[index]
+    write_dir = out_dir / split_type
+    for record_id in row['split_column']:
+        recording = wfdb.rdrecord(f'{raw_dir}/{record_id}')
+        annotation = wfdb.rdann(f'{raw_dir}/{record_id}', annotation_extension)
+        record = Record.from_wfdb(recording, annotation, record_id)
+        record = run_pipeline(record, pipeline, logger)
+
+        # write the preprocessed intermediate data to parquet
+        record_windows = pa.Table.from_pandas(record.window_table)
+        pq.write_table(record_windows, f'{write_dir}/{record_id}.parquet')
+
+        logger.info(f"Wrote preprocessed parquet for record {record_id}")
+    
+    return
+
 
 def run_pipeline(record: Record, pipeline: list[dict], logger) -> Record:
     """pipeline defiend in preprocessing config"""
@@ -49,21 +73,18 @@ def mit_bih_preprocessing_main(config_path: str):
 
     record_df = pd.read_parquet(index_parquet) # row 0 is train, row 1 is val, row 2 is test
 
-    # TODO: parallelize because processing records is an independent operation
-    for index, row in record_df.iterrows():
-        split_type = index_row_map[index]
-        write_dir = out_dir / split_type
-        for record_id in row['split_column']:
-            recording = wfdb.rdrecord(f'{raw_dir}/{record_id}')
-            annotation = wfdb.rdann(f'{raw_dir}/{record_id}', annotation_extension)
-            record = Record.from_wfdb(recording, annotation, record_id)
-            record = run_pipeline(record, pipeline, logger)
-
-            # write the preprocessed intermediate data to parquet
-            record_windows = pa.Table.from_pandas(record.window_table)
-            pq.write_table(record_windows, f'{write_dir}/{record_id}.parquet')
-
-            logger.info(f"Wrote preprocessed parquet for record {record_id}")
+    num_cores = multiprocessing.cpu_count()
+    index_row_list = list(record_df.iterrows())
+    worker = partial(
+        process_record,
+        raw_dir=raw_dir,
+        out_dir=out_dir,
+        annotation_extension=annotation_extension,
+        pipeline=pipeline,
+        index_row_map=index_row_map,
+    )
+    with multiprocessing.Pool(processes=num_cores) as p:
+        p.map(worker, index_row_list)
 
         
 if __name__ == "__main__":
