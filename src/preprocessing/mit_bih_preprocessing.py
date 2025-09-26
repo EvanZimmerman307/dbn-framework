@@ -50,6 +50,7 @@ def run_pipeline(record: Record, pipeline: list[dict], logger) -> Record:
     out = record
     for spec in pipeline:
         op = spec["op"]
+        logger.info(f"Running step: {op}")
         params = spec.get("params", {})
         step_cls = STEP_REGISTRY[op]
         out = step_cls(params)(out)

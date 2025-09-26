@@ -4,7 +4,9 @@ index_parquet: ../../data/index/mit_bih_index.parquet
 pipeline:
   - op: highpass_filter
     params: { cutoff_hz: 0.5, order: 4, zero_phase: true }
-  - op: pan_tompkins
+  # - op: pan_tompkins
+  #   params: { fs: 360, channels: [MLII, V5] }
+  - op: xqrs
     params: { fs: 360, channels: [MLII, V5] }
   - op: normalize
     params: { clip_sigma: 5 }
@@ -13,25 +15,44 @@ pipeline:
       window_len: 10 
       stride:  8 
       core: 8
-      R_peak_symbols:
-        - N
-        - L
-        - R
-        - B
-        - A
-        - a
-        - J
-        - S
-        - V
-        - r 
-        - F
-        - n
-        - e
-        - j
-        - E
-        - /
-        - f
-        - Q
-        - '?'
+      # R_peak_symbols:
+      #   - N
+      #   - L
+      #   - R
+      #   - B
+      #   - A
+      #   - a
+      #   - J
+      #   - S
+      #   - V
+      #   - r 
+      #   - F
+      #   - n
+      #   - e
+      #   - j
+      #   - E
+      #   - /
+      #   - f
+      #   - Q
+      #   - '?'
+      superclass_map : # ignore non-beats: +, ~, [, ], !, |, #, x, "
+        N: N    # Normal
+        J: SVEB # Junctional premature
+        V: VEB  # PVC
+        R: N    # Right bundle branch block
+        L: N    # Left bundle branch block
+        E: VEB  # Ventricular escape
+        A: SVEB # Atrial premature
+        F: F    # Fusion beat
+        a: SVEB # Aberrated atrial premature
+        Q: Q    # Unclassifiable
+        j: N    # Junctional escape
+        /: Q    # Paced beat
+        f: Q    # Fusion of paced + normal
+        S: SVEB # Supraventricular premature
+        e: N    # Atrial escape
+        n: N
+        r: VEB
+        B: N
 index_row_map: { 0: train, 1: val, 2: test }
 annotation_extension: atr

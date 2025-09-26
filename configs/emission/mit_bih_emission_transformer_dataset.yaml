@@ -1,0 +1,21 @@
+data_dir: ../../data/preprocessed
+superclass2label:
+  N: 0
+  SVEB: 1
+  VEB: 2
+  F: 3
+  Q: 4
+fs: 360 #Hz
+# Use a ~0.8 s window centered on the candidate beat, with more context after the R-peak than before.
+window_before: 200 #ms
+window_after: 600 #ms
+window_len: 10 #seconds
+non_channel_columns: !!set
+  ? start
+  ? end
+  ? core_start
+  ? core_end
+  ? annotation_symbols
+  ? annotation_ind
+  ? candidates
+out_dir: ../../data/emission 

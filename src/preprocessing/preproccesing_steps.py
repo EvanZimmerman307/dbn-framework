@@ -6,6 +6,32 @@ from dataclasses import replace
 from ecgdetectors import Detectors
 import logging
 import pandas as pd
+from wfdb import processing
+
+# @register("pan_tompkins")
+# class PanTompkins(PreprocessingStep):
+#     """Run the pan-tompkins algorithm to detect candidate R peaks"""
+#     def __call__(self, record: Record) -> Record:
+#         logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+#         logger = logging.getLogger(__name__)
+#         x = record.ecg_recording.signal
+#         try:
+#             fs = int(self.params["fs"])
+#             channels = self.params["channels"] # channels to try for PT
+#         except Exception as e:
+#             logger.info(f"sampling frequency (fs) and channel need to be specified in preprocessing config: {e}")
+#         detectors = Detectors(fs)
+        
+#         # try the channels in the specified order
+#         for channel in channels:
+#             if channel in record.ecg_recording.channels: # if the channel is in the ecg recording channels, grab the index
+#                 channel_index = record.ecg_recording.channels.index(channel)
+#                 break
+        
+#         channel_signal = x[channel_index]
+#         candidate_r_peaks = detectors.pan_tompkins_detector(channel_signal) #indices
+#         candidate_r_peaks = np.asarray(candidate_r_peaks)
+#         return replace(record, candidates=candidate_r_peaks)
 
 @register("highpass_filter")
 class HighpassFilter(PreprocessingStep):
@@ -42,10 +68,9 @@ class HighpassFilter(PreprocessingStep):
         ecg_new = replace(ecg_new, stats=stats)
         return replace(record, ecg_recording=ecg_new)
 
-
-@register("pan_tompkins")
-class PanTompkins(PreprocessingStep):
-    """Run the pan-tompkins algorithm to detect candidate R peaks"""
+@register("xqrs")
+class XQRS(PreprocessingStep):
+    """Run XQRS from wfdb for candidate detection"""
     def __call__(self, record: Record) -> Record:
         logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
         logger = logging.getLogger(__name__)
@@ -55,8 +80,7 @@ class PanTompkins(PreprocessingStep):
             channels = self.params["channels"] # channels to try for PT
         except Exception as e:
             logger.info(f"sampling frequency (fs) and channel need to be specified in preprocessing config: {e}")
-        detectors = Detectors(fs)
-        
+
         # try the channels in the specified order
         for channel in channels:
             if channel in record.ecg_recording.channels: # if the channel is in the ecg recording channels, grab the index
@@ -64,7 +88,7 @@ class PanTompkins(PreprocessingStep):
                 break
         
         channel_signal = x[channel_index]
-        candidate_r_peaks = detectors.pan_tompkins_detector(channel_signal) #indices
+        candidate_r_peaks = processing.xqrs_detect(sig=channel_signal, fs=fs) #indices
         candidate_r_peaks = np.asarray(candidate_r_peaks)
         return replace(record, candidates=candidate_r_peaks)
 
@@ -118,12 +142,13 @@ class Windowize(PreprocessingStep):
             window_len = int(params["window_len"])
             stride = int(params["stride"])
             core = int(params["core"])
-            R_peak_symbols = params["R_peak_symbols"]
-            R_peak_symbols = set(R_peak_symbols)
+            # R_peak_symbols = params["R_peak_symbols"]
+            # R_peak_symbols = set(R_peak_symbols)
+            superclass_map = params["superclass_map"]
         except Exception as e:
             logger.info(f"window len, stride, core, and R peak symbols need to be specified in make_windows config: {e}")
         channels = record.ecg_recording.channels
-        column_names = ['start', 'end', 'core_start', 'core_end'] + channels + ['annotations', 'candidates']
+        column_names = ['start', 'end', 'core_start', 'core_end'] + channels + ['annotation_symbols', 'annotation_ind', 'candidates']
         window_table = pd.DataFrame(columns=column_names)
 
         fs = record.ecg_recording.fs
@@ -146,18 +171,24 @@ class Windowize(PreprocessingStep):
                 channel_slice = signal[i][window_row['start']: window_row['end'] + 1]
                 window_row[channel_name] = channel_slice
             
+            if len(window_row[channels[0]]) < samples_per_window:
+                continue  # Skip partial windows
+
             annotation_core = []
+            annotation_ind = []
             i = prev_annotation_i
             while i < len(annotation_indices):
                 ind, symbol = annotation_indices[i], annotation_symbols[i]
                 if ind > window_row['core_end']:
                     break
 
-                if ind >= window_row['core_start'] and symbol in R_peak_symbols:
-                    annotation_core.append(ind)
+                if ind >= window_row['core_start'] and symbol in superclass_map:
+                    annotation_core.append(superclass_map[symbol])
+                    annotation_ind.append(ind)
                 
                 i += 1 
-            window_row['annotations'] = annotation_core
+            window_row['annotation_symbols'] = annotation_core
+            window_row['annotation_ind'] = annotation_ind
             prev_annotation_i = i
             
             candidate_core = []

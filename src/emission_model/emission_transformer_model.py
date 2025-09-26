@@ -47,7 +47,7 @@ class TinyTransformer(nn.Module):
     def __init__(self, d=128, nhead=4, nlayers=2, pdrop=0.1, emb_dim=64):
         """
         Implements a compact transformer encoder for 
-        sequence processing with dual outputs: classification logits and normalized embeddings.
+        sequence processing with dual outputs: multiclass-classification logits and normalized embeddings.
         """
 
         super().__init__()
@@ -56,7 +56,7 @@ class TinyTransformer(nn.Module):
                                                dropout=pdrop, batch_first=True)
         self.encoder = nn.TransformerEncoder(enc_layer, num_layers=nlayers)
         self.pool = nn.AdaptiveAvgPool1d(1)   # simple global pool
-        self.head_cls = nn.Linear(d, 1) # Linear layer projecting to a single logit for binary classification
+        self.head_cls = nn.Linear(d, 6) # Linear layer projecting to a single logit for multi-class classification (extra class for no beat)
         self.head_emb = nn.Linear(d, emb_dim) # Linear layer projecting to `emb_dim`-dimensional embeddings
 
 
@@ -65,9 +65,9 @@ class TinyTransformer(nn.Module):
         # global average over time
         # Global average pooling reduces this to `(B, d)` by averaging across the time dimension
         h_pooled = h.mean(dim=1) # (B,d)
-        logit = self.head_cls(h_pooled).squeeze(-1) # scalar prediction before sigmoid
+        logits = self.head_cls(h_pooled)
         emb = F.normalize(self.head_emb(h_pooled), dim=-1) # normalized embedding vector
-        return logit, emb
+        return logits, emb
 
 class EmissionTransformer(nn.Module):
     def __init__(self, c_in:int, d_model:int=128, nhead:int=4, nlayers:int=2,
@@ -91,9 +91,14 @@ class EmissionTransformer(nn.Module):
         x = torch.from_numpy(snippet).float().unsqueeze(0)      # (1,C,T)
         x = self.patch(x)                                       # (1,T,d)
         x = self.pos(x)
-        logit, emb = self.backbone(x)
-        prob = torch.sigmoid(logit).item()
-        return {"logit": float(logit.item()), "prob": float(prob), "embedding": emb.squeeze(0).cpu().numpy()}
+        logits, emb = self.backbone(x)
+        probs = torch.softmax(logits, dim=-1)
+        return {
+            "logits": logits.squeeze(0).cpu().numpy(),  # (5,)
+            "probs": probs.squeeze(0).cpu().numpy(),    # (5,)
+            "pred_class": int(torch.argmax(probs).item()),  # int
+            "embedding": emb.squeeze(0).cpu().numpy()   # (emb_dim,)
+        }
 
     def forward(self, x):   # training: x=(B,C,T)
         x = self.patch(x)   # (B,T,d)
