@@ -1,0 +1,41 @@
+raw_dir: ../../data/raw/mit-bih-arrhythmia-database-1.0.0
+out_dir: ../../data/preprocessed
+index_parquet: ../../data/index/mit_bih_index.parquet
+index_row_map: { 0: train, 1: val, 2: test }
+annotation_extension: atr
+pipeline:
+  - op: select_signal # Modified Lead II (see https://physionet.org/physiobank/database/html/mitdbdir/intro.htm)
+    params: { candidate_channels: [MLII, V5] }
+  - op: low_pass_filter
+    params: { cutoff_freq: 30, order: 5 }
+  - op: downsample
+    params: { target_fs: 100 }
+  - op: windowize
+    params: { window_duration: 10 }
+  - op: detrend
+    params: { regularization: 500 }
+  - op: stockwell_transform
+    params: { fmin: 0, fmax: 15, signal_length: 10 }
+  - op: make_window_table
+    params:
+      superclass_map : # ignore non-beats: +, ~, [, ], !, |, #, x, "
+        N: N    # Normal
+        J: SVEB # Junctional premature
+        V: VEB  # PVC
+        R: N    # Right bundle branch block
+        L: N    # Left bundle branch block
+        E: VEB  # Ventricular escape
+        A: SVEB # Atrial premature
+        F: F    # Fusion beat
+        a: SVEB # Aberrated atrial premature
+        Q: Q    # Unclassifiable
+        j: N    # Junctional escape
+        /: Q    # Paced beat
+        f: Q    # Fusion of paced + normal
+        S: SVEB # Supraventricular premature
+        e: N    # Atrial escape
+        n: N
+        r: VEB
+        B: N
+      original_fs: 360
+      signal_length: 10

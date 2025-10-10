@@ -5,7 +5,7 @@ import pandas as pd
 import wfdb
 from record import Record
 from preprocessing_base import STEP_REGISTRY, PreprocessingStep
-import preproccesing_steps
+import segment_preprocessing_steps
 import pyarrow as pa
 import pyarrow.parquet as pq
 import time
@@ -16,7 +16,7 @@ from functools import partial
 Summary of the Runtime Flow
 Python starts your script.
 Imports happen:
-preproccesing_steps.py is imported, registering all steps.
+segment_preproccesing_steps.py is imported, registering all steps.
 STEP_REGISTRY is now populated.
 Your main function loads the pipeline config.
 For each record, run_pipeline looks up and applies each step in order.
@@ -62,6 +62,7 @@ def mit_bih_preprocessing_main(config_path: str):
 
     with open(config_path, "r") as f:
         cfg = yaml.safe_load(f)
+
     raw_dir = Path(cfg["raw_dir"])
     index_parquet = Path(cfg["index_parquet"])
     pipeline = cfg["pipeline"]
@@ -89,7 +90,7 @@ def mit_bih_preprocessing_main(config_path: str):
 
         
 if __name__ == "__main__":
-    config_path = "../../configs/preprocessing/mit_bih_preprocessing.yaml"
+    config_path = "../../configs/preprocessing/mit_bih_segment_preprocessing.yaml"
     start_time = time.perf_counter()
     mit_bih_preprocessing_main(config_path)
     end_time = time.perf_counter()

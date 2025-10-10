@@ -1,0 +1,4 @@
+model_path: best_emission_model.pth
+test_data_path: ../../data/emission/test/data.pt
+batch_size: 32
+c_in: 2

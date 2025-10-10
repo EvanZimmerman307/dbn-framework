@@ -3,5 +3,6 @@ train_data_path: ../../data/emission/train/data.pt
 val_data_path: ../../data/emission/val/data.pt
 batch_size: 32
 num_epochs: 10
-lr: 0.001
+lr: 0.0001 # 1e-4 was 1e-3
 save_model_path: best_emission_model.pth
+d_model: 256 # tried 128

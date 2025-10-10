@@ -1,5 +1,6 @@
 wfdb
+neurokit2
+stockwell
 PyYAML
 pyarrow
-py-ecg-detectors
-torch
+scikit-learn

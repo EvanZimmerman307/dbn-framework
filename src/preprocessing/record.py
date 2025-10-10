@@ -16,7 +16,6 @@ class Annotation:
     indices: np.ndarray
     symbols: list[str]
 
-
 @dataclass(kw_only=True) 
 class Record:
     ecg_recording: EcgRecording

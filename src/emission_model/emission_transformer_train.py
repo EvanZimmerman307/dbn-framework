@@ -8,7 +8,7 @@ from dataclasses import dataclass
 import yaml
 from pathlib import Path
 import time
-
+from collections import Counter
 
 def train_emission_transformer(config_path):
     print("Starting Training!")
@@ -22,6 +22,7 @@ def train_emission_transformer(config_path):
     batch_size = cfg["batch_size"]
     num_epochs = cfg["num_epochs"]
     lr = cfg["lr"]
+    d_model = cfg["d_model"]
     save_model_path = cfg["save_model_path"]
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -29,15 +30,26 @@ def train_emission_transformer(config_path):
         print("Using GPU!")
 
     model = EmissionTransformer(
-        c_in = c_in
+        c_in = c_in,
+        d_model = d_model
     ).to(device)
 
-    criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=lr)
     emission_transformer_train_dataset = EmissionTransformerDataset(train_data_path)
     emission_transformer_val_dataset = EmissionTransformerDataset(val_data_path)
     train_dataloader = DataLoader(emission_transformer_train_dataset, batch_size=batch_size)
     val_dataloader = DataLoader(emission_transformer_val_dataset, batch_size=batch_size)
+
+    # Compute class weights (inversely proportional to class frequency)
+    all_labels = []
+    for _, labels in train_dataloader:
+        all_labels.extend(labels.numpy())
+    class_counts = Counter(all_labels)
+    total_samples = len(all_labels)
+    weights = torch.tensor([total_samples / class_counts[i] for i in range(6)], dtype=torch.float).to(device)
+
+    criterion = nn.CrossEntropyLoss(weight=weights)
+
     best_val_loss = float('inf')
     
     for epoch in range(num_epochs):
