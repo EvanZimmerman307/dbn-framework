@@ -34,14 +34,14 @@ def process_record(index_row, raw_dir, out_dir, annotation_extension, pipeline, 
         recording = wfdb.rdrecord(f'{raw_dir}/{record_id}')
         annotation = wfdb.rdann(f'{raw_dir}/{record_id}', annotation_extension)
         record = Record.from_wfdb(recording, annotation, record_id)
-        record = run_pipeline(record, pipeline, logger)
+        record.split_type = split_type
+        run_pipeline(record, pipeline, logger) # record = None
 
         # write the preprocessed intermediate data to parquet
-        record_windows = pa.Table.from_pandas(record.window_table)
-        pq.write_table(record_windows, f'{write_dir}/{record_id}.parquet')
+        # record_windows = pa.Table.from_pandas(record.window_table)
+        # pq.write_table(record_windows, f'{write_dir}/{record_id}.parquet')
 
-        logger.info(f"Wrote preprocessed parquet for record {record_id}")
-    
+        # logger.info(f"Wrote preprocessed parquet for record {record_id}")
     return
 
 

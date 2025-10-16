@@ -22,6 +22,7 @@ class Record:
     annotation: Annotation
     candidates: np.ndarray = None
     window_table: pd.DataFrame = None
+    split_type: str = None
 
     @classmethod
     def from_wfdb(cls, recording, annotation, record_id):

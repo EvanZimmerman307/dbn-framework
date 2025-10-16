@@ -4,3 +4,4 @@ virtualenv
 __pycache__
 data/preprocessed
 data/emission
+myenv

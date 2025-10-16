@@ -16,7 +16,7 @@ pipeline:
     params: { regularization: 500 }
   - op: stockwell_transform
     params: { fmin: 0, fmax: 15, signal_length: 10 }
-  - op: make_window_table
+  - op: make_dataset
     params:
       superclass_map : # ignore non-beats: +, ~, [, ], !, |, #, x, "
         N: N    # Normal
@@ -39,3 +39,4 @@ pipeline:
         B: N
       original_fs: 360
       signal_length: 10
+      output_path: ../../data/preprocessed

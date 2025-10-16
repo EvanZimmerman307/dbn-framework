@@ -1,6 +1,5 @@
 wfdb
-neurokit2
-stockwell
+h5py
 PyYAML
 pyarrow
 scikit-learn

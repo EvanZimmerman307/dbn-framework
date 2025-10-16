@@ -6,9 +6,12 @@ import logging
 import pandas as pd
 from scipy import signal
 # import neurokit2 as nk
-from stockwell import st
+# from stockwell import st
+from stockwell_transform_gpu import stockwell_transform_pytorch
 from collections import defaultdict
 import scipy.sparse
+import h5py
+from pathlib import Path
 
 @register("select_signal")
 class SelectSignal(PreprocessingStep):
@@ -175,13 +178,17 @@ class StockwellTransform(PreprocessingStep):
         except Exception as e:
             logger.info(f"Need to specify fmin, fmax, and signal_length in config params")
         
-        df = 1 / signal_length
-        fmin_samples = int(fmin / df)
-        fmax_samples = int(fmax / df)
+        # df = 1 / signal_length
+        # fmin_samples = int(fmin / df)
+        # fmax_samples = int(fmax / df)
         
         transformed_signals = []
-        for i in range(len(record.ecg_recording.signal)):
-            trans_signal = st.st(record.ecg_recording.signal[i].squeeze(), fmin_samples, fmax_samples)
+
+        for i in range(len(record.ecg_recording.signal)): 
+            # logger.info(f"Stockwell params: fmin={fmin}, fmax={fmax}, signal_length={signal_length}")
+            # logger.info(f"Calculated: df={df}, fmin_samples={fmin_samples}, fmax_samples={fmax_samples}")
+            # logger.info(f"Signal shape: {record.ecg_recording.signal[i].shape}")
+            trans_signal = stockwell_transform_pytorch(record.ecg_recording.signal[i].squeeze(), fmin, fmax, fs=record.ecg_recording.fs)
             real_part = np.real(trans_signal)
             imag_part = np.imag(trans_signal)
             transformed_signal = np.stack((real_part, imag_part), axis=0)
@@ -190,8 +197,8 @@ class StockwellTransform(PreprocessingStep):
         ecg_new = replace(record.ecg_recording, signal=transformed_signals)
         return replace(record, ecg_recording=ecg_new)
 
-@register("make_window_table")
-class MakeWindowTable(PreprocessingStep):
+@register("make_dataset")
+class MakeDataset(PreprocessingStep):
     """
     Make the window table
     """
@@ -203,6 +210,7 @@ class MakeWindowTable(PreprocessingStep):
             original_fs = self.params["original_fs"]
             superclass_map = self.params["superclass_map"]
             signal_length = self.params["signal_length"]
+            output_path = self.params['output_path']
         except Exception as e:
             logger.info(f"Need to specify original_fs and superclass_map in config params")
         
@@ -213,6 +221,13 @@ class MakeWindowTable(PreprocessingStep):
         label_i = 0
         annotation_indices = record.annotation.indices
         annotation_symbols = record.annotation.symbols
+
+        signals_list = []
+        labels_list = []
+        record_ids_list = []
+        start_i_list = []
+        end_i_list = []
+        channel_list = []
         for i in range(len(record.ecg_recording.signal)):
             start = i * record.ecg_recording.signal[i].shape[-1]
             start_t = start / fs # in seconds
@@ -229,8 +244,9 @@ class MakeWindowTable(PreprocessingStep):
             while label_i_time < end_t and label_i < len(annotation_indices):
                 if label_i_time > start_t:
                     symbol = annotation_symbols[label_i]
-                    superclass_symbol = superclass_map[symbol]
-                    label_count[superclass_symbol] += 1
+                    if symbol in superclass_map:
+                        superclass_symbol = superclass_map[symbol]
+                        label_count[superclass_symbol] += 1
                 
                 # otherwise this annotation is before start_t
                 label_i += 1
@@ -239,25 +255,41 @@ class MakeWindowTable(PreprocessingStep):
                 
                 label_i_time = annotation_indices[label_i] / original_fs
             
-            
             # All rows need labels
             if len(label_count) == 0:
                 continue
 
             majority_superclass_symbol = max(label_count.items(), key=lambda x: x[1])[0]
+            
+            start_i_list.append(start)
+            end_i_list.append(end)
+            channel_list.append(record.ecg_recording.channels[0])
+            signals_list.append(sig)
+            labels_list.append(majority_superclass_symbol)
+            record_ids_list.append(record.ecg_recording.record_id)
 
-            window_row = {"start_i": start, "end_i": end, record.ecg_recording.channels[0]: sig, "label": majority_superclass_symbol}
-            next_ind = len(window_table)
-            window_table.loc[next_ind] = window_row
-        
-        return replace(record, window_table=window_table)
+        # Convert to numpy arrays
+        signals_array = np.array(signals_list)  # Shape: (n_windows, 2, 150, 1000)
+        labels_array = np.array(labels_list, dtype='S10')  # Unicode strings
+        record_ids_array = np.array(record_ids_list, dtype='S10')
+        start_i_array = np.array(start_i_list)
+        end_i_array = np.array(end_i_list)
+        channel_array = np.array(channel_list, dtype='S10')
 
-
-
-# def detrend_fast(signal, inv_cached):
-#     z_stat = (np.eye(len(signal)) - inv_cached) @ signal
-#     trend = signal - z_stat
-#     return signal - trend
+        # Save to HDF5
+        output_path = Path(f"{output_path}/{record.split_type}")
+        output_path.mkdir(parents=True, exist_ok=True)  # Ensure directory exists
+        file_path = output_path / f"{record.ecg_recording.record_id}.h5"  # Use record.record_id
+        with h5py.File(file_path, 'w') as f:
+            f.create_dataset('signals', data=signals_array, compression='gzip')
+            f.create_dataset('labels', data=labels_array)
+            f.create_dataset('record_ids', data=record_ids_array)
+            f.create_dataset('start_i', data=start_i_array)
+            f.create_dataset('end_i', data=end_i_array)
+            f.create_dataset('channel_name', data=channel_array) 
+           
+        logger.info(f"Wrote preprocessed data for record {record.ecg_recording.record_id} to preprocessing/{record.split_type}")
+        return None
 
 def _build_D2_matrix(N):
     """Build the second-order difference matrix for Tarvainen detrending."""
